@@ -1,40 +1,67 @@
-use std::io::{self, Read}; 
+use std::io::{self, Read};
 
-fn decode(bin: &str, bit_size: usize){
-    let mut decoded_text = String::new();
+fn try_decode(bin: &str, bit_size: usize) -> Option<String> {
+    let mut result = String::new();
 
-    for chunk in bin.as_bytes().chunks(bit_size){
-        if let Ok(chunk_str) = std::str::from_utf8(chunk){
-            if let Ok(num) = u8::from_str_radix(chunk_str, 2){
-                let ch = num as char;
-
-                if ch == '\x08' {
-                    decoded_text.pop();
+    for chunk in bin.as_bytes().chunks(bit_size) {
+        if chunk.len() < bit_size {
+            return None;
+        }
+        if let Ok(chunk_str) = std::str::from_utf8(chunk) {
+            if let Ok(num) = u8::from_str_radix(chunk_str, 2) {
+                // If checking 7-bit mode, all numbers must be valid 7-bit ASCII (<= 127)
+                if bit_size == 7 && num > 127 {
+                    return None;
                 }
-                else {
-                    decoded_text.push(ch);
+                
+                let character = num as char;
+                if character == '\x08' {
+                    result.pop();
+                } else {
+                    result.push(character);
                 }
+            } else {
+                return None;
             }
+        } else {
+            return None;
         }
     }
-    print!("{}\n", decoded_text);
+
+    Some(result)
 }
 
-fn main() -> io::Result<()>{
+fn decode(bin: &str) {
+    let len = bin.len();
 
-    // takes in an input
-    let mut bin_mes = String::new();
-    io::stdin().read_to_string(&mut bin_mes)?;
+    // 1. Try 7-bit first if length is divisible by 7
+    if len % 7 == 0 {
+        if let Some(decoded) = try_decode(bin, 7) {
+            println!("{}", decoded);
+            return;
+        }
+    }
 
-    // gets rid of any escape characters
-    let clean_bin_mes: String= bin_mes
-        .chars()
-        .filter(|c| *c == '0' || *c == '1')
-        .collect();
-    print!("-----7 bit---------\n");
-    decode(&clean_bin_mes, 7);
-    print!("-----8 bit---------\n");
-    decode(&clean_bin_mes, 8);    
+    // 2. Try 8-bit if length is divisible by 8
+    if len % 8 == 0 {
+        if let Some(decoded) = try_decode(bin, 8) {
+            println!("{}", decoded);
+            return;
+        }
+    }
+
+    // 3. Fallback to 8-bit if neither exact match succeeded
+    if let Some(decoded) = try_decode(bin, 8) {
+        println!("{}", decoded);
+    }
+}
+
+fn main() -> io::Result<()> {
+    let mut bin_msg = String::new();
+    io::stdin().read_to_string(&mut bin_msg)?;
+
+    let clean_msg = bin_msg.replace("\x1b", "").replace("\r", "").replace("\n", "");
+    decode(clean_msg.trim());
 
     Ok(())
 }
