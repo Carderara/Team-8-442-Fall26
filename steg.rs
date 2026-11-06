@@ -106,6 +106,62 @@ fn retrieve_bits( wrapper: &[u8], offset: usize, interval: usize,) -> Result<Vec
     Err("Sentinel not found".to_string())
 }
 
+fn store_bytes(wrapper: &mut Vec<u8>, hidden: &[u8], offset: usize, interval: usize) -> Result<(), String>
+{
+    // checks if the interval is zero
+    if interval == 0
+    {
+        return Err("Interval cannot be zero".to_string());
+    }
+
+    // loops through hidden data and sentinel
+    for (i, &byte) in hidden.iter().chain(SENTINEL.iter()).enumerate()
+    {
+        let position = i.checked_mul(interval)
+            .and_then(|step| offset.checked_add(step))
+            .ok_or_else(|| "Offset or interval is too large".to_string())?;
+
+        if position >= wrapper.len()
+        {
+            return Err("Hidden file is too large for wrapper".to_string());
+        }
+
+        wrapper[position] = byte;
+    }
+    Ok(())
+}
+
+fn retrieve_bytes(wrapper: &[u8], offset: usize, interval: usize) -> Result<Vec<u8>, String>
+{
+    // checks if interval is zero
+    if interval == 0
+    {
+        return Err("Interval cannot be zero".to_string());
+    }
+
+    let mut current_offset = offset;
+    let mut hidden = Vec::new();
+
+    while current_offset < wrapper.len()
+    {
+        
+        hidden.push(wrapper[current_offset]);
+
+        if hidden.ends_with(&SENTINEL)
+        {
+            hidden.truncate(hidden.len() - SENTINEL.len());
+            return Ok(hidden);
+        }
+
+        current_offset = match current_offset.checked_add(interval)
+        {
+            Some(next) => next,
+            None => break,
+        };
+    }
+    Err("Sentinel not found".to_string())
+}
+
 fn run() -> Result<(), String> 
 {
     let args: Vec<String> = env::args().collect();
@@ -219,7 +275,7 @@ fn run() -> Result<(), String>
         
         else 
         {
-            return Err("Byte storage is not implemented yet".to_string());   
+            store_bytes(&mut wrapper, &hidden, offset, interval)?;   
         }
 
         io::stdout().write_all(&wrapper).map_err(|_| "Could not write output".to_string())?;
@@ -235,7 +291,7 @@ fn run() -> Result<(), String>
         
         else 
         {
-            return Err("Byte retrieval is note implemented yet". to_string());
+            retrieve_bytes(&wrapper, offset, interval)?
         };
 
         io::stdout().write_all(&hidden).map_err(|_| "Could not write output".to_string())?;
