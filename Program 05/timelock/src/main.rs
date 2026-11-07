@@ -1,3 +1,8 @@
+// author: Noah Folse, Josh Ramachandran
+// team: Deimos
+// date: 11/6/26
+// desc: Program 05 - timelock
+
 use chrono::{Local, LocalResult, NaiveDateTime, TimeZone};
 use std::io::{self, Read};
 
